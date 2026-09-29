@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DealFlow — From Won Deal to Notified Client, Automatically</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A working concept: the moment a deal is marked Won in a CRM, a contract generates and the client is notified automatically. No manual handoff.">
+<style>
+  :root {
+    --ink: #171D2B;
+    --paper: #F7F6F2;
+    --paper-raised: #FFFFFF;
+    --line: #E4E1D8;
+    --teal: #2F7A73;
+    --teal-deep: #1F5852;
+    --coral: #E1552E;
+    --muted: #6B7280;
+    box-sizing: border-box;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #F3F1EA;
+      --paper: #14181F;
+      --paper-raised: #1B212B;
+      --line: #2B313C;
+      --muted: #9AA1AC;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #F3F1EA;
+    --paper: #14181F;
+    --paper-raised: #1B212B;
+    --line: #2B313C;
+    --muted: #9AA1AC;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  header {
+    padding: 22px 0 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .brand-name { font-weight: 800; font-size: 19px; letter-spacing: -0.01em; }
+  .brand-name span { color: var(--teal); }
+  .brand-tag { color: var(--muted); font-size: 14px; max-width: 480px; text-align: right; }
+
+  .hero { padding: 44px 0 8px; }
+  .hero h1 {
+    font-size: clamp(30px, 4.4vw, 46px);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    margin: 0 0 14px;
+    max-width: 15ch;
+    font-weight: 800;
+  }
+  .hero p.lede { color: var(--muted); font-size: 17px; max-width: 54ch; line-height: 1.6; margin: 0; }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+    gap: 40px;
+    padding: 46px 0 20px;
+    align-items: start;
+  }
+  @media (max-width: 800px) {
+    .stage { grid-template-columns: 1fr; }
+  }
+
+  /* Deal card */
+  .deal-card {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+  }
+  .deal-card .crm-label { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+  .deal-card .crm-label b { color: var(--ink); }
+  .deal-title { font-size: 19px; font-weight: 700; margin: 0 0 4px; }
+  .deal-sub { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+  .deal-meta { display: flex; gap: 22px; margin-bottom: 18px; flex-wrap: wrap; }
+  .deal-meta div { font-size: 13px; }
+  .deal-meta .k { color: var(--muted); display: block; margin-bottom: 2px; }
+  .deal-meta .v { font-weight: 700; }
+  .pill {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: #FDE8B8;
+    color: #6B4E00;
+    margin-bottom: 18px;
+    transition: background 0.4s ease, color 0.4s ease;
+  }
+  .pill.won { background: #CFEBE3; color: var(--teal-deep); }
+
+  button#trigger {
+    width: 100%;
+    border: none;
+    background: var(--teal);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 13px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease;
+  }
+  button#trigger:hover { background: var(--teal-deep); }
+  button#trigger:active { transform: scale(0.98); }
+  button#trigger:disabled { background: var(--line); color: var(--muted); cursor: default; }
+
+  .note { font-size: 12.5px; color: var(--muted); margin-top: 12px; line-height: 1.5; }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 30px; }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 9px; top: 6px; bottom: 6px;
+    width: 2px;
+    background: var(--line);
+  }
+  .step {
+    position: relative;
+    padding-bottom: 30px;
+    opacity: 0.35;
+    transition: opacity 0.4s ease;
+  }
+  .step:last-child { padding-bottom: 0; }
+  .step.active { opacity: 1; }
+  .step::before {
+    content: "";
+    position: absolute;
+    left: -30px; top: 2px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--paper-raised);
+    border: 2px solid var(--line);
+    transition: border-color 0.3s ease, background 0.3s ease;
+  }
+  .step.active::before { border-color: var(--teal); background: var(--teal); }
+  .step.active.final::before { border-color: var(--coral); background: var(--coral); }
+  .step-label { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+  .step-tool { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .step-detail {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease;
+  }
+  .step.active .step-detail { max-height: 220px; }
+
+  .doc-preview, .chat-bubble, .blueprint-mini {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .doc-preview .doc-title { font-weight: 700; margin-bottom: 6px; }
+  .doc-preview .doc-line { color: var(--muted); margin-bottom: 3px; }
+  .chat-bubble { background: #DCF3EE; border-color: #BFE6DC; color: var(--teal-deep); max-width: 90%; }
+
+  .final-line { font-size: 14px; color: var(--muted); margin-top: 4px; }
+  .final-line b { color: var(--ink); }
+
+  /* Blueprint toggle */
+  .blueprint-toggle {
+    margin-top: 46px;
+    border-top: 1px solid var(--line);
+    padding-top: 26px;
+  }
+  .blueprint-toggle summary {
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 15px;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .blueprint-toggle summary::-webkit-details-marker { display: none; }
+  .blueprint-toggle summary::before {
+    content: "";
+    width: 8px; height: 8px;
+    border-right: 2px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+    transform: rotate(-45deg);
+    transition: transform 0.2s ease;
+  }
+  .blueprint-toggle[open] summary::before { transform: rotate(45deg); }
+  .blueprint-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+  .blueprint-mini { flex: 1 1 150px; text-align: center; }
+  .blueprint-mini .m-name { font-weight: 700; font-size: 13px; }
+  .blueprint-mini .m-detail { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+  .blueprint-arrow { align-self: center; color: var(--muted); font-size: 18px; }
+
+  .about {
+    margin-top: 50px;
+    padding: 26px 0 60px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.65;
+    max-width: 68ch;
+  }
+  .about strong { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="brand-name">Deal<span>Flow</span></div>
+      <div class="brand-tag">A concept build by Neo Mocheba</div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <h1>The gap between "deal won" and "client onboarded," closed.</h1>
+    <p class="lede">Most teams lose momentum right after a deal closes: someone has to remember to draft the contract, send it, then follow up on WhatsApp. This is that handoff, automated end to end. Click the deal below and watch it run.</p>
+  </section>
+
+  <section class="stage">
+    <div class="deal-card">
+      <div class="crm-label">CRM &middot; <b>Pipedrive</b></div>
+      <div class="deal-title">Riverstone Interiors — Office Fit-Out</div>
+      <div class="deal-sub">Contact: Marc Tellier, Operations Manager</div>
+      <div class="deal-meta">
+        <div><span class="k">Value</span><span class="v">R184,000</span></div>
+        <div><span class="k">Stage</span><span class="v" id="stageText">Negotiation</span></div>
+      </div>
+      <div><span class="pill" id="pill">In Negotiation</span></div>
+      <button id="trigger">Mark deal as Won</button>
+      <div class="note">This runs entirely in your browser with sample data, no live CRM or API keys connected. It mirrors exactly how the real Make.com scenario is wired underneath.</div>
+    </div>
+
+    <div class="timeline" id="timeline">
+      <div class="step" data-step="1">
+        <div class="step-label">Deal marked Won</div>
+        <div class="step-tool">Pipedrive</div>
+        <div class="step-detail"><div class="doc-preview"><div class="doc-line">Deal stage changed &rarr; Won. Webhook fires to Make.com with the deal ID, value, and contact details.</div></div></div>
+      </div>
+      <div class="step" data-step="2">
+        <div class="step-label">Automation triggered</div>
+        <div class="step-tool">Make.com scenario</div>
+        <div class="step-detail"><div class="doc-preview"><div class="doc-line">Incoming webhook parsed &middot; deal data mapped to the document template fields.</div></div></div>
+      </div>
+      <div class="step" data-step="3">
+        <div class="step-label">Contract generated</div>
+        <div class="step-tool">PandaDoc</div>
+        <div class="step-detail">
+          <div class="doc-preview">
+            <div class="doc-title">Service Agreement — Riverstone Interiors</div>
+            <div class="doc-line">Client: Marc Tellier</div>
+            <div class="doc-line">Contract value: R184,000</div>
+            <div class="doc-line">Status: Sent for signature</div>
+          </div>
+        </div>
+      </div>
+      <div class="step final" data-step="4">
+        <div class="step-label">Client notified</div>
+        <div class="step-tool">WhatsApp via WATI</div>
+        <div class="step-detail">
+          <div class="chat-bubble">Hi Marc, congrats, we're all set! Your contract for the Riverstone fit-out is ready to sign, check your inbox. Reply here anytime with questions.</div>
+          <div class="final-line"><b>4.2 seconds</b> from deal closed to client notified. Zero manual steps.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <details class="blueprint-toggle">
+    <summary>See how it's actually wired</summary>
+    <div class="blueprint-row">
+      <div class="blueprint-mini"><div class="m-name">Webhook</div><div class="m-detail">Catches the Pipedrive "deal won" event</div></div>
+      <div class="blueprint-arrow">&rarr;</div>
+      <div class="blueprint-mini"><div class="m-name">Router</div><div class="m-detail">Filters by deal value and pipeline</div></div>
+      <div class="blueprint-arrow">&rarr;</div>
+      <div class="blueprint-mini"><div class="m-name">PandaDoc module</div><div class="m-detail">Creates &amp; sends the contract</div></div>
+      <div class="blueprint-arrow">&rarr;</div>
+      <div class="blueprint-mini"><div class="m-name">WATI module</div><div class="m-detail">Sends the WhatsApp confirmation</div></div>
+    </div>
+  </details>
+
+  <div class="about">
+    <strong>Why I built this:</strong> the CRM work I keep getting pulled into isn't the pipeline itself, it's everything that's supposed to happen the second a deal closes. That handoff is where businesses lose days to a forgotten follow-up. This is a concept build showing exactly how I'd wire it: Pipedrive as the source of truth, Make.com running the logic, PandaDoc handling the paperwork, WhatsApp closing the loop with the client. Sample data here, same structure I'd use live.
+  </div>
+
+</div>
+
+<script>
+  const btn = document.getElementById('trigger');
+  const pill = document.getElementById('pill');
+  const stageText = document.getElementById('stageText');
+  const steps = Array.from(document.querySelectorAll('.step'));
+
+  btn.addEventListener('click', () => {
+    btn.disabled = true;
+    btn.textContent = 'Running automation…';
+    pill.textContent = 'Won';
+    pill.classList.add('won');
+    stageText.textContent = 'Won';
+
+    steps.forEach((step, i) => {
+      setTimeout(() => {
+        step.classList.add('active');
+        step.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (i === steps.length - 1) {
+          btn.textContent = 'Done — deal closed & client notified';
+        }
+      }, 550 * (i + 1));
+    });
+  });
+</script>
+</body>
+</html>
